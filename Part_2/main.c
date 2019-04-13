@@ -4,6 +4,7 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <float.h>
+#include <pthread.h>
 #include "xmmintrin.h"
 
 #define MINSNPS_B 5
@@ -11,6 +12,21 @@
 
 double gettime(void);
 float randpval (void);
+
+//Thead stuff
+static pthread_t * workerThread; 
+static pthread_barrier_t barrier;
+
+typedef struct 
+{
+	int threadID;
+	int threadTOTAL;
+
+	int threadBARRIER;
+	int threadOPERATION;
+	
+
+} threadData_t;
 
 	double gettime(void)
 	{
