@@ -9,6 +9,12 @@
 
 #define MINSNPS_B 5
 #define MAXSNPS_E 20
+#define BUSYWAIT 0
+#define EXIT 127
+#define COMPUTE_ANTIDIAGONAL 1
+#define COMPUTE_ANTIDIAGONAL_P2_A 2
+#define COMPUTE_ANTIDIAGONAL_P2_B 3
+#define COMPUTE_ANTIDIAGONAL_P3 4
 
 double gettime(void);
 float randpval (void);    
@@ -72,6 +78,104 @@ float sum(float a,float b)
 		return(a+b);
 }
 
+
+void * thread (void * x)
+{
+	threadData_t * currentThread = (threadData_t *) x;
+
+	int tid = currentThread->threadID;
+
+#ifdef PINNING
+	pinToCore(tid);
+#endif
+	int threads = currentThread->threadTOTAL;
+	
+	while(1)
+	{
+		__sync_synchronize();
+
+		if(currentThread->threadOPERATION==EXIT)
+			return NULL;
+		
+// 		if(currentThread->threadOPERATION==COMPUTE_ANTIDIAGONAL)
+// 		{
+// 			computeAntidiagonal (currentThread);
+
+// 			currentThread->threadOPERATION=BUSYWAIT;
+
+// #ifdef SENSE_REVERSAL_BARRIER
+// 			sense_reversal_barrier(tid, threads);
+// #else
+// #ifdef PTHREAD_BARRIER
+//  			pthread_barrier_wait(&barrier);
+// #else
+// 			currentThread->threadBARRIER=1;			
+// 			while(currentThread->threadBARRIER==1) __sync_synchronize();
+// #endif
+// #endif
+// 		}
+
+// 		if(currentThread->threadOPERATION==COMPUTE_ANTIDIAGONAL_P2_A)
+// 		{
+// 			computeAntidiagonal_P2_A (currentThread);
+
+// 			currentThread->threadOPERATION=BUSYWAIT;
+
+// #ifdef SENSE_REVERSAL_BARRIER
+// 			sense_reversal_barrier(tid, threads);
+// #else
+// #ifdef PTHREAD_BARRIER
+//  			pthread_barrier_wait(&barrier);
+// #else
+// 			currentThread->threadBARRIER=1;			
+// 			while(currentThread->threadBARRIER==1) __sync_synchronize();
+// #endif
+// #endif		
+// 		}
+
+// 		if(currentThread->threadOPERATION==COMPUTE_ANTIDIAGONAL_P2_B)
+// 		{
+// 			computeAntidiagonal_P2_B (currentThread);
+
+// 			currentThread->threadOPERATION=BUSYWAIT;
+
+// #ifdef SENSE_REVERSAL_BARRIER
+// 			sense_reversal_barrier(tid, threads);
+// #else
+// #ifdef PTHREAD_BARRIER
+//  			pthread_barrier_wait(&barrier);
+// #else
+// 			currentThread->threadBARRIER=1;			
+// 			while(currentThread->threadBARRIER==1) __sync_synchronize();
+// #endif
+// #endif		
+// 		}
+
+// 		if(currentThread->threadOPERATION==COMPUTE_ANTIDIAGONAL_P3)
+// 		{
+// 			computeAntidiagonal_P3 (currentThread);
+
+// 			currentThread->threadOPERATION=BUSYWAIT;
+
+// #ifdef SENSE_REVERSAL_BARRIER
+// 			sense_reversal_barrier(tid, threads);
+// #else
+// #ifdef PTHREAD_BARRIER
+//  			pthread_barrier_wait(&barrier);
+// #else
+// 			currentThread->threadBARRIER=1;			
+// 			while(currentThread->threadBARRIER==1) __sync_synchronize();
+// #endif
+// #endif		
+// 		}
+
+	}
+	
+	return NULL;		
+}
+
+
+
 	 
 int main(int argc, char ** argv)
 {	
@@ -82,9 +186,9 @@ int main(int argc, char ** argv)
 	assert(s == 0);
 
 	workerThread=NULL;
-	workerThread=(pthread *) malloc (sizeof(pthread)*((unsigned long)threads-1)); //We write the workerThread as thread-1 cause the one thread is the master
+	workerThread=(pthread_t *) malloc (sizeof(pthread_t)*((unsigned long)threads-1)); //We write the workerThread as thread-1 cause the one thread is the master
 
-	threadData* threadData = (threadData *) malloc (sizeof(threadData)*((unsigned long)threads));
+	threadData_t * threadData = (threadData_t *) malloc (sizeof(threadData_t)*((unsigned long)threads));
 	assert(threadData!=NULL);
 
 	for (int i = 0; i < threads; i++)
