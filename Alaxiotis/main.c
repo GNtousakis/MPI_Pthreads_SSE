@@ -129,58 +129,6 @@ static pthread_t * workerThread;
 static pthread_barrier_t barrier;
 #endif
 
-#ifdef SENSE_REVERSAL_BARRIER
-static int count;
-static bool sense;
-
-typedef struct localsense_t {
-	bool lsense;
-}localsense_t;
-
-static localsense_t *localsense_list=NULL;
-void sense_reversal_barrier_init (int num_threads);
-void sense_reversal_barrier (int tid, int num_threads);
-void sense_reversal_barrier_destroy (void);
-
-void sense_reversal_barrier_init (int num_threads)
-{
-	int i;
-	sense = true;
-	count = num_threads;
-	if (localsense_list==NULL) 
-	{
-		localsense_list = (localsense_t *)malloc(sizeof(localsense_t)*(unsigned long)num_threads);
-		assert(localsense_list!=NULL);
-	}
-	for (i=0; i<num_threads; i++) 
-	{
-		localsense_list[i].lsense=true;
-	}
-}
-
-
-void sense_reversal_barrier (int tid, int num_threads) 
-{
-	int threadno = tid;
-	localsense_list[threadno].lsense = !localsense_list[threadno].lsense;
-
-	if (__sync_fetch_and_sub (&count, 1) == 1) {
-		count = num_threads;
-		sense = localsense_list[threadno].lsense;
-	}
-	else {
-		while(sense != localsense_list[threadno].lsense) __sync_synchronize();
-	}
-}
-
-void sense_reversal_barrier_destroy (void) 
-{
-	if(localsense_list!=NULL)
-		free(localsense_list);
-
-	localsense_list=NULL;
-}
-#endif
 
 typedef struct
 {
@@ -211,6 +159,8 @@ typedef struct
 	antidiagonalData_t antidiagonalData;	
 
 } threadData_t;
+
+
 
 void computeAntidiagonalPart (threadData_t * currentThread);
 void initializeThreadData(threadData_t * cur, int i, int threads, int MATCH, int MISMATCH, int GAP, char * Q, char * D, int ** diag, int sizeQ);
@@ -263,39 +213,15 @@ void updateThreadArguments_COMPUTE_ANTIDIAGONAL_operation (threadData_t * thread
 
 }
 
-/*void lock ()
-{
-	while(__sync_lock_test_and_set(&lockVal,1)==1);
-}
-
-void unlock()
-{
-	lockVal=0;
-}*/
 
 static inline void syncThreadsBARRIER(threadData_t * threadData)
 {
 	int i, threads = threadData[0].threadTOTAL, barrierS=0;
 
 	threadData[0].threadOPERATION=BUSYWAIT;
-
-#ifdef SENSE_REVERSAL_BARRIER
-	sense_reversal_barrier(0, threads);
-#else
-#ifdef PTHREAD_BARRIER
  	pthread_barrier_wait(&barrier);
-#else
-	while(barrierS!=threads)
-	{
-		barrierS=0;
-		for(i=0;i<threads;i++)
-			barrierS += threadData[i].threadBARRIER;
-	}
 
-	for(i=0;i<threads;i++)
-		threadData[i].threadBARRIER=0;
-#endif
-#endif
+
 }
 
 static inline void computeAntidiagonal (threadData_t * threadData)
@@ -387,271 +313,6 @@ static inline void computeAntidiagonal (threadData_t * threadData)
 	threadData->antidiagonalData.maxVal = threadData->antidiagonalData.maxVal>=maxVal?threadData->antidiagonalData.maxVal:maxVal;
 }
 
-static inline void computeAntidiagonal_P2_A (threadData_t * threadData)
-{
-	int threadID = threadData->threadID;
-	int totalThreads = threadData->threadTOTAL;
-
-	int diagSize = threadData->antidiagonalData.diagSize;
-	int diagDoffset = threadData->antidiagonalData.diagDoffset;
-	int MATCH = threadData->antidiagonalData.MATCH;
-	int MISMATCH = threadData->antidiagonalData.MISMATCH;
-	int GAP = threadData->antidiagonalData.GAP;
-	char * Q = threadData->antidiagonalData.Q;
-	char * D = threadData->antidiagonalData.D;
-	int ** diag = threadData->antidiagonalData.diag;
-	int i = threadData->antidiagonalData.diagIndex;
-	int jstart0 = threadData->antidiagonalData.jstart0;
-	int Qindex = threadData->antidiagonalData.Qindex;
-	int cu = 0;
-	int maxVal = 0;
-#ifdef JAM
-	int maxVal1 = 0, maxVal2 = 0;
-#endif
-
-	int tasksPerThread = diagSize / totalThreads;
-
-	int jstart = tasksPerThread*threadID;
-	int jstop = tasksPerThread*threadID+tasksPerThread-1;
-
-	if(threadID==0)
-		jstart = jstart0;
-
-	if(threadID==totalThreads-1)
-		jstop = diagSize-1-1;
-	
-	int j;
-#ifdef UNROLL2
-	int unroll=2;
-#ifndef JAM
-	for(j=jstart;j<jstop-unroll;j=j+unroll)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-
-		isMatch = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-		diag[i][(j+1)] = MAX3(diag[i-2][(j+1)]+isMatch, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-		cu++;
-		maxVal = diag[i][(j+1)]>=maxVal?diag[i][(j+1)]:maxVal;
-	}
-#else
-	for(j=jstart;j<jstop-unroll;j=j+unroll)
-	{
-		int isMatch1 = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-		int isMatch2 = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-
-		diag[i][j] = MAX3(diag[i-2][j]+isMatch1, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		diag[i][(j+1)] = MAX3(diag[i-2][(j+1)]+isMatch2, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-
-		cu=cu+2;
-		maxVal1 = diag[i][j]>=maxVal1?diag[i][j]:maxVal1;
-		maxVal2 = diag[i][(j+1)]>=maxVal2?diag[i][(j+1)]:maxVal2;
-	}
-	maxVal = maxVal1>=maxVal2?maxVal1:maxVal2;
-#endif
-	for(;j<=jstop;j++)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-	}
-#else
-	for(j=jstart;j<=jstop;j++)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-	}
-#endif
-	threadData->antidiagonalData.cu += cu;
-	threadData->antidiagonalData.maxVal = threadData->antidiagonalData.maxVal>=maxVal?threadData->antidiagonalData.maxVal:maxVal;
-}
-
-static inline void computeAntidiagonal_P2_B (threadData_t * threadData)
-{
-	int threadID = threadData->threadID;
-	int totalThreads = threadData->threadTOTAL;
-
-	int diagSize = threadData->antidiagonalData.diagSize;
-	int diagDoffset = threadData->antidiagonalData.diagDoffset;
-	int MATCH = threadData->antidiagonalData.MATCH;
-	int MISMATCH = threadData->antidiagonalData.MISMATCH;
-	int GAP = threadData->antidiagonalData.GAP;
-	char * Q = threadData->antidiagonalData.Q;
-	char * D = threadData->antidiagonalData.D;
-	int ** diag = threadData->antidiagonalData.diag;
-	int i = threadData->antidiagonalData.diagIndex;
-	int jstart0 = threadData->antidiagonalData.jstart0;
-	int Qindex = threadData->antidiagonalData.Qindex;
-	int cu = 0;
-	int maxVal = 0;
-#ifdef JAM
-	int maxVal1 = 0, maxVal2 = 0;
-#endif
-
-	int tasksPerThread = diagSize / totalThreads;
-
-	int jstart = tasksPerThread*threadID;
-	int jstop = tasksPerThread*threadID+tasksPerThread-1;
-
-	if(threadID==0)
-		jstart = jstart0;
-
-	if(threadID==totalThreads-1)
-		jstop = diagSize-1-1;
-	
-	int j;
-#ifdef UNROLL2
-	int unroll = 2;
-#ifndef JAM
-	for(j=jstart;j<jstop-unroll;j=j+unroll)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-
-		isMatch = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-		diag[i][(j+1)] = MAX3(diag[i-2][(j+1)+1]+isMatch, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-		cu++;
-		maxVal = diag[i][(j+1)]>=maxVal?diag[i][(j+1)]:maxVal;
-	}
-#else
-	for(j=jstart;j<jstop-unroll;j=j+unroll)
-	{
-		int isMatch1 = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-		int isMatch2 = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch1, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		diag[i][(j+1)] = MAX3(diag[i-2][(j+1)+1]+isMatch2, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-
-		cu=cu+2;
-		maxVal1 = diag[i][j]>=maxVal1?diag[i][j]:maxVal1;
-		maxVal2 = diag[i][(j+1)]>=maxVal2?diag[i][(j+1)]:maxVal2;
-	}
-	maxVal = maxVal1>=maxVal2?maxVal1:maxVal2;
-#endif
-	for(;j<=jstop;j++)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-	}
-
-#else
-	for(j=jstart;j<=jstop;j++)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-	}
-#endif
-
-	threadData->antidiagonalData.cu += cu;
-	threadData->antidiagonalData.maxVal = threadData->antidiagonalData.maxVal>=maxVal?threadData->antidiagonalData.maxVal:maxVal;
-}
-
-static inline void computeAntidiagonal_P3 (threadData_t * threadData)
-{
-	int threadID = threadData->threadID;
-	int totalThreads = threadData->threadTOTAL;
-
-	int diagSize = threadData->antidiagonalData.diagSize;
-	int diagDoffset = threadData->antidiagonalData.diagDoffset;
-	int MATCH = threadData->antidiagonalData.MATCH;
-	int MISMATCH = threadData->antidiagonalData.MISMATCH;
-	int GAP = threadData->antidiagonalData.GAP;
-	char * Q = threadData->antidiagonalData.Q;
-	char * D = threadData->antidiagonalData.D;
-	int ** diag = threadData->antidiagonalData.diag;
-	int i = threadData->antidiagonalData.diagIndex;
-	int jstart0 = threadData->antidiagonalData.jstart0;
-	int Qindex = threadData->antidiagonalData.Qindex;
-	int cu = 0;
-	int maxVal = 0;
-#ifdef JAM
-	int maxVal1 = 0, maxVal2 = 0;
-#endif
-	int tasksPerThread = diagSize / totalThreads;
-
-	int jstart = tasksPerThread*threadID;
-	int jstop = tasksPerThread*threadID+tasksPerThread-1;
-
-	if(threadID==0)
-		jstart = jstart0;
-
-	if(threadID==totalThreads-1)
-		jstop = diagSize-1;
-	
-	int j;
-#ifdef UNROLL2
-	int unroll = 2;
-#ifndef JAM
-	for(j=jstart;j<jstop-unroll;j=j+unroll)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-
-		isMatch = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-		diag[i][(j+1)] = MAX3(diag[i-2][(j+1)+1]+isMatch, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-		cu++;
-		maxVal = diag[i][(j+1)]>=maxVal?diag[i][(j+1)]:maxVal;
-	}
-#else
-	for(j=jstart;j<jstop-unroll;j=j+unroll)
-	{
-		int isMatch1 = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-		int isMatch2 = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch1, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		diag[i][(j+1)] = MAX3(diag[i-2][(j+1)+1]+isMatch2, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-
-		cu=cu+2;
-		maxVal1 = diag[i][j]>=maxVal1?diag[i][j]:maxVal1;
-		maxVal2 = diag[i][(j+1)]>=maxVal2?diag[i][(j+1)]:maxVal2;
-	}
-	maxVal = maxVal1>=maxVal2?maxVal1:maxVal2;
-#endif
-	for(;j<=jstop;j++)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-	}
-#else
-	for(j=jstart;j<=jstop;j++)
-	{
-		int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
-
-		diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-		cu++;
-		maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-	}
-#endif
-	threadData->antidiagonalData.cu += cu;
-	threadData->antidiagonalData.maxVal = threadData->antidiagonalData.maxVal>=maxVal?threadData->antidiagonalData.maxVal:maxVal;
-}
 
 
 static inline void execFunctionMaster(threadData_t * threadData, int operation)
@@ -688,31 +349,12 @@ void startThreadOperations(threadData_t * threadData, int operation)
 	syncThreadsBARRIER(threadData);		
 }
 
-#ifdef PINNING
-static void pinToCore(int tid)
-{
-	cpu_set_t cpuset;
-         
-	CPU_ZERO(&cpuset);    
-	CPU_SET(tid, &cpuset);
-	if(pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0)
-	{
-		fprintf(stdout, "\n ERROR: Please specify a number of threads that is smaller or equal");
-		fprintf(stdout, "\n        to the number of available physical cores (%d).\n\n",tid);
-		exit(0);
-	}
-}
-#endif
 
 void * thread (void * x)
 {
 	threadData_t * currentThread = (threadData_t *) x;
 
 	int tid = currentThread->threadID;
-
-#ifdef PINNING
-	pinToCore(tid);
-#endif
 	int threads = currentThread->threadTOTAL;
 	
 	while(1)
@@ -728,16 +370,9 @@ void * thread (void * x)
 
 			currentThread->threadOPERATION=BUSYWAIT;
 
-#ifdef SENSE_REVERSAL_BARRIER
-			sense_reversal_barrier(tid, threads);
-#else
 #ifdef PTHREAD_BARRIER
  			pthread_barrier_wait(&barrier);
-#else
-			currentThread->threadBARRIER=1;			
-			while(currentThread->threadBARRIER==1) __sync_synchronize();
-#endif
-#endif
+#endif		
 		}
 
 		if(currentThread->threadOPERATION==COMPUTE_ANTIDIAGONAL_P2_A)
@@ -746,15 +381,9 @@ void * thread (void * x)
 
 			currentThread->threadOPERATION=BUSYWAIT;
 
-#ifdef SENSE_REVERSAL_BARRIER
-			sense_reversal_barrier(tid, threads);
-#else
+
 #ifdef PTHREAD_BARRIER
  			pthread_barrier_wait(&barrier);
-#else
-			currentThread->threadBARRIER=1;			
-			while(currentThread->threadBARRIER==1) __sync_synchronize();
-#endif
 #endif		
 		}
 
@@ -764,16 +393,11 @@ void * thread (void * x)
 
 			currentThread->threadOPERATION=BUSYWAIT;
 
-#ifdef SENSE_REVERSAL_BARRIER
-			sense_reversal_barrier(tid, threads);
-#else
+
 #ifdef PTHREAD_BARRIER
  			pthread_barrier_wait(&barrier);
-#else
-			currentThread->threadBARRIER=1;			
-			while(currentThread->threadBARRIER==1) __sync_synchronize();
-#endif
-#endif		
+#endif	
+
 		}
 
 		if(currentThread->threadOPERATION==COMPUTE_ANTIDIAGONAL_P3)
@@ -782,15 +406,9 @@ void * thread (void * x)
 
 			currentThread->threadOPERATION=BUSYWAIT;
 
-#ifdef SENSE_REVERSAL_BARRIER
-			sense_reversal_barrier(tid, threads);
-#else
+
 #ifdef PTHREAD_BARRIER
  			pthread_barrier_wait(&barrier);
-#else
-			currentThread->threadBARRIER=1;			
-			while(currentThread->threadBARRIER==1) __sync_synchronize();
-#endif
 #endif		
 		}
 
@@ -811,8 +429,6 @@ void terminateWorkerThreads(pthread_t * workerThreadL, threadData_t * threadData
 }
 
 #endif
-
-
 
 
 int main()
@@ -898,14 +514,10 @@ int main()
 		diag[i] = &(matMem[curDiagOffset]);
 	}
 #endif
-
+///////////////////////////////////////////////////////////////////////////////////
 #ifdef PTHREADS
 
 	int threads = THREADS;
-
-#ifdef SENSE_REVERSAL_BARRIER
-	sense_reversal_barrier_init (threads);
-#endif
 
 #ifdef PTHREAD_BARRIER
 	int s = pthread_barrier_init(&barrier, NULL, (unsigned int)threads);
@@ -924,11 +536,10 @@ int main()
 
 	for(i=1;i<threads;i++)
 		pthread_create (&workerThread[i-1], NULL, thread, (void *) (&threadData[i]));
-
-
-	
-
 #endif
+//////////////////////////////////////////////////////////////////////
+
+
 
 	double time0 = gettime();
 	int maxVal = 0;
@@ -1355,40 +966,7 @@ int main()
 			diagDoffset++;
 			int diagSize = diagSizeCur--;
 			int Qindex = sizeQ-1;
-#ifdef UNROLL4
-			int unroll = 4;
-#ifndef JAM
-			for(j=0;j<diagSize-unroll;j=j+unroll) 
-			{
-				int isMatch = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
 
-				diag[i][j] = MAX3(diag[i-2][j+1]+isMatch, diag[i-1][j]+GAP, diag[i-1][j+1]+GAP);
-				
-				cu++;
-				maxVal = diag[i][j]>=maxVal?diag[i][j]:maxVal;
-
-				isMatch = Q[Qindex-(j+1)]==D[diagDoffset+(j+1)-1]?MATCH:MISMATCH;
-
-				diag[i][(j+1)] = MAX3(diag[i-2][(j+1)+1]+isMatch, diag[i-1][(j+1)]+GAP, diag[i-1][(j+1)+1]+GAP);
-				
-				cu++;
-				maxVal = diag[i][(j+1)]>=maxVal?diag[i][(j+1)]:maxVal;
-
-				isMatch = Q[Qindex-(j+2)]==D[diagDoffset+(j+2)-1]?MATCH:MISMATCH;
-
-				diag[i][(j+2)] = MAX3(diag[i-2][(j+2)+1]+isMatch, diag[i-1][(j+2)]+GAP, diag[i-1][(j+2)+1]+GAP);
-				
-				cu++;
-				maxVal = diag[i][(j+2)]>=maxVal?diag[i][(j+2)]:maxVal;
-
-				isMatch = Q[Qindex-(j+3)]==D[diagDoffset+(j+3)-1]?MATCH:MISMATCH;
-
-				diag[i][(j+3)] = MAX3(diag[i-2][(j+3)+1]+isMatch, diag[i-1][(j+3)]+GAP, diag[i-1][(j+3)+1]+GAP);
-				
-				cu++;
-				maxVal = diag[i][(j+3)]>=maxVal?diag[i][(j+3)]:maxVal;
-			}
-#else
 			for(j=0;j<diagSize-unroll;j=j+unroll) 
 			{
 				int isMatch1 = Q[Qindex-j]==D[diagDoffset+j-1]?MATCH:MISMATCH;
