@@ -66,7 +66,7 @@ typedef struct
 	int threadBARRIER;
 	int threadOPERATION;
 
-	int N;
+	int i;
 
 	float * mVec;
 	float * nVec;
@@ -88,7 +88,7 @@ void initializeThreadData(threadData_t * cur, int i, int threads,int n,float * m
 	cur->threadBARRIER=0;
 	cur->threadOPERATION=BUSYWAIT;
 
-	cur->N=n;
+	cur->i=n;
 
 	cur->mVec=mVec1;
 	cur->nVec=nVec1;
@@ -114,45 +114,44 @@ void paralsin(threadData_t * threadData)
 	float avgF = threadData->avgF;
 	float maxF = threadData->maxF;
 	float minF = threadData->minF;
-
 	float * mVec=threadData->mVec;
 	float * nVec=threadData->nVec;
 	float * LVec=threadData->LVec;
 	float * RVec=threadData->RVec;
 	float * CVec=threadData->CVec;
 	float * FVec=threadData->FVec;
-	int N=threadData->N;
+	int     N=threadData->N;
 
-	for(unsigned int i=0;i<N; i+=4)
-	{
+	__m128 LVecss= _mm_set_ps(LVec[i+3], LVec[i+2], LVec[i+1], LVec[i]);
+	__m128 RVecss= _mm_set_ps(RVec[i+3], RVec[i+2], RVec[i+1], RVec[i]);
+	__m128 mVecss= _mm_set_ps(mVec[i+3], mVec[i+2], mVec[i+1], mVec[i]);
+	__m128 nVecss= _mm_set_ps(nVec[i+3], nVec[i+2], nVec[i+1], nVec[i]);
+	__m128 CVecss= _mm_set_ps(CVec[i+3], CVec[i+2], CVec[i+1], CVec[i]);
+	__m128 FVecss= _mm_set_ps(FVec[i+3], FVec[i+2], FVec[i+1], FVec[i]);
 
-		__m128 LVecss= _mm_set_ps(LVec[i+3], LVec[i+2], LVec[i+1], LVec[i]);
-		__m128 RVecss= _mm_set_ps(RVec[i+3], RVec[i+2], RVec[i+1], RVec[i]);
-		__m128 mVecss= _mm_set_ps(mVec[i+3], mVec[i+2], mVec[i+1], mVec[i]);
-		__m128 nVecss= _mm_set_ps(nVec[i+3], nVec[i+2], nVec[i+1], nVec[i]);
-		__m128 CVecss= _mm_set_ps(CVec[i+3], CVec[i+2], CVec[i+1], CVec[i]);
-		__m128 FVecss= _mm_set_ps(FVec[i+3], FVec[i+2], FVec[i+1], FVec[i]);
+	variable= _mm_add_ps(LVecss, RVecss);
+	variable1= _mm_div_ps( _mm_mul_ps(mVecss, _mm_sub_ps(mVecss,scale2))  ,  scale3);
+	variable2= _mm_div_ps( _mm_mul_ps(nVecss, _mm_sub_ps(nVecss,scale2))  ,  scale3);
+	variable3= _mm_div_ps(variable,_mm_add_ps(variable1,variable2));
+	variable4=_mm_sub_ps(CVecss,_mm_sub_ps(LVecss,RVecss));
+	variable5=_mm_mul_ps(mVecss,nVecss);
+	variable6=_mm_div_ps(variable4,variable5);
 
-		variable= _mm_add_ps(LVecss, RVecss);
-		variable1= _mm_div_ps( _mm_mul_ps(mVecss, _mm_sub_ps(mVecss,scale2))  ,  scale3);
-		variable2= _mm_div_ps( _mm_mul_ps(nVecss, _mm_sub_ps(nVecss,scale2))  ,  scale3);
-		variable3= _mm_div_ps(variable,_mm_add_ps(variable1,variable2));
-		variable4=_mm_sub_ps(CVecss,_mm_sub_ps(LVecss,RVecss));
-		variable5=_mm_mul_ps(mVecss,nVecss);
-		variable6=_mm_div_ps(variable4,variable5);
+	FVecss = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));
 
-		FVecss = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));
+	float result[4];
+	_mm_store_ps(result, FVecss);
+	float newMax = max(max(max(result[0], result[1]), result[2]), result[3]);
+	maxF = (newMax>maxF) ? newMax : maxF;
+	float newMin = min(min(min(result[0], result[1]), result[2]), result[3]);
+	minF = (newMin<minF) ? newMin : minF;
+	float sum_all = sum(sum(sum(result[0], result[1]), result[2]), result[3]);
+	avgF+=sum_all;
 
-		float result[4];
-		_mm_store_ps(result, FVecss);
-		float newMax = max(max(max(result[0], result[1]), result[2]), result[3]);
-		maxF = (newMax>maxF) ? newMax : maxF;
-		float newMin = min(min(min(result[0], result[1]), result[2]), result[3]);
-		minF = (newMin<minF) ? newMin : minF;
-		float sum_all = sum(sum(sum(result[0], result[1]), result[2]), result[3]);
-		avgF+=sum_all;
+	threadData->avgF= avgF;
+	threadData->maxF= maxF;
+	threadData->minF= minF;
 
-		}
 }
 
 void syncThreadsBARRIER(threadData_t * threadData)
@@ -299,6 +298,7 @@ int main(int argc, char ** argv)
 		}
 		
 	}
+
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
