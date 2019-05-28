@@ -288,18 +288,23 @@ int main(int argc, char ** argv)
 
 	double timeOmegaTotalStart = gettime();
 
-
-	for(unsigned int j=threads-1;j<iters;j++)
+	for(unsigned int j=0;j<iters;j++)
 	{
-		startThreadOperations(threadData, LOOP);		
+		avgF = 0.0f;
+		maxF = 0.0f;
+		minF = FLT_MAX;
+		for(unsigned int i=threads-1;j<N;i+=4)
+		{
+			startThreadOperations(threadData, LOOP);		
+		}
+		
 	}
-
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
-	avgF = (&threadData[threads-1])->avgF;
-	maxF = (&threadData[threads-1])->maxF;
-	minF = (&threadData[threads-1])->minF;
+	avgF = (&threadData[threads-2])->avgF;
+	maxF = (&threadData[threads-2])->maxF;
+	minF = (&threadData[threads-2])->minF;
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
