@@ -107,8 +107,8 @@ void updateThreadData(threadData_t * threadData, int number)
 {
 
 	for (int unsigned i=0;i<(threadData->threadTOTAL);i+=1){
-		threadData[i]->i=number;
-		number+=1;
+		threadData[i].i=number;
+		number+=4;
 	}
 }
 
@@ -129,7 +129,7 @@ void paralsin(threadData_t * threadData)
 	float * RVec=threadData->RVec;
 	float * CVec=threadData->CVec;
 	float * FVec=threadData->FVec;
-	int     i=threadData->N;
+	int     i=threadData->i;
 
 	__m128 LVecss= _mm_set_ps(LVec[i+3], LVec[i+2], LVec[i+1], LVec[i]);
 	__m128 RVecss= _mm_set_ps(RVec[i+3], RVec[i+2], RVec[i+1], RVec[i]);
@@ -306,6 +306,12 @@ int main(int argc, char ** argv)
 			updateThreadData(threadData,i);
 			startThreadOperations(threadData, LOOP);		
 		}
+
+		avgF = ((&threadData[0])->avgF + (&threadData[1])->avgF);
+		maxF = ((&threadData[1])->maxF);
+		maxF = ((&threadData[0])->maxF>(&threadData[1])->maxF)?(&threadData[0])->maxF:maxF;
+		minF = ((&threadData[1])->minF);
+		minF = ((&threadData[0])->minF>(&threadData[1])->minF)?(&threadData[0])->minF:minF;
 		
 	}
 
