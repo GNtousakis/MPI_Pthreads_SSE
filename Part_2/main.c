@@ -120,7 +120,7 @@ void paralsin(threadData_t * threadData)
 	float * RVec=threadData->RVec;
 	float * CVec=threadData->CVec;
 	float * FVec=threadData->FVec;
-	int     N=threadData->N;
+	int     i=threadData->N;
 
 	__m128 LVecss= _mm_set_ps(LVec[i+3], LVec[i+2], LVec[i+1], LVec[i]);
 	__m128 RVecss= _mm_set_ps(RVec[i+3], RVec[i+2], RVec[i+1], RVec[i]);
@@ -302,9 +302,7 @@ int main(int argc, char ** argv)
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
-	avgF = (&threadData[threads-2])->avgF;
-	maxF = (&threadData[threads-2])->maxF;
-	minF = (&threadData[threads-2])->minF;
+	
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
