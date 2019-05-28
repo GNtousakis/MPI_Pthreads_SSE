@@ -103,6 +103,15 @@ void initializeThreadData(threadData_t * cur, int i, int threads,int n,float * m
 
 }
 
+void updateThreadData(threadData_t * threadData, int number)
+{
+
+	for (int unsigned i=0;i<(threadData->threadTOTAL);i+=1){
+		threadData[i]->i=number;
+		number+=1;
+	}
+}
+
 
 void paralsin(threadData_t * threadData)
 {
@@ -292,8 +301,9 @@ int main(int argc, char ** argv)
 		avgF = 0.0f;
 		maxF = 0.0f;
 		minF = FLT_MAX;
-		for(unsigned int i=threads-1;j<N;i+=4)
+		for(unsigned int i=0;i<N;i+=(4*threads))
 		{
+			updateThreadData(threadData,i);
 			startThreadOperations(threadData, LOOP);		
 		}
 		
