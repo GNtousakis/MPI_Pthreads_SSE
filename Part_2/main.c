@@ -320,8 +320,8 @@ int main(int argc, char ** argv)
 		_mm_store_ps(minl, (&threadData[k])->minF);
 		_mm_store_ps(suml, (&threadData[k])->avgF);
 		maxF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),maxF);
-		minF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),minF);
-		avgF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),avgF);
+		minF = min(min(min(min(minl[0], minl[1]), minl[2]), minl[3]),minF);
+		avgF = sum(sum(sum(sum(suml[0], suml[1]), suml[2]), suml[3]),avgF);
 		
 	}
 
