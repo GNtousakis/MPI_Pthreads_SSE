@@ -103,8 +103,8 @@ void initializeThreadData(threadData_t * cur, int i, int threads,int n,float * m
 	cur->CVec=CVec1;
 	cur->FVec=FVec1;
 
-	cur->avgF= _mm_set_ps(0,0,0,0);;
-	cur->maxF= _mm_set_ps(0,0,0,0);;
+	cur->avgF= _mm_set_ps(0,0,0,0);
+	cur->maxF= _mm_set_ps(0,0,0,0);
 	cur->minF= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
 }
 
@@ -312,8 +312,7 @@ int main(int argc, char ** argv)
 	float minl[4];
 	float suml[4];
 
-	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
-	double timeTotalMainStop = gettime();
+	
 
 	for (unsigned int k=0;k<threads;k++)
 	{
@@ -325,6 +324,9 @@ int main(int argc, char ** argv)
 		avgF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),avgF);
 		
 	}
+
+	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
+	double timeTotalMainStop = gettime();
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
