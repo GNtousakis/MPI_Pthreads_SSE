@@ -80,9 +80,9 @@ typedef struct
 	float * FVec;	
 
 	//All the necessary values to get results
-	float avgF;	
-	float maxF;	
-	float minF;	
+	__m128 avgF;	
+	__m128 maxF;	
+	__m128 minF;	
 
 }threadData_t;
 
@@ -103,19 +103,18 @@ void initializeThreadData(threadData_t * cur, int i, int threads,int n,float * m
 	cur->CVec=CVec1;
 	cur->FVec=FVec1;
 
-	cur->avgF=0.0f;
-	cur->maxF=0.0f;
-	cur->minF=FLT_MAX;
-
+	cur->avgF= _mm_set_ps(0,0,0,0);;
+	cur->maxF= _mm_set_ps(0,0,0,0);;
+	cur->minF= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
 }
 
 
 void updateThreadMMA(threadData_t * threadData)
 {
 	for (int unsigned i=0;i<(threadData->threadTOTAL);i+=1){
-		threadData[i].maxF=0;
-		threadData[i].minF=0;
-		threadData[i].avgF=FLT_MAX;		
+		threadData[i].maxF=_mm_set_ps(0,0,0,0);
+		threadData[i].minF=_mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
+		threadData[i].avgF=_mm_set_ps(0,0,0,0);
 	}
 }
 
@@ -128,10 +127,6 @@ void paralsin(threadData_t * threadData)
 	__m128 scale1 = _mm_set_ps1(0.01f);
 	__m128 scale2 = _mm_set_ps1(1.0f);
 	__m128 scale3 = _mm_set_ps1(2.0f);
-
-	float avgF = 0.0f;
-	float maxF = 0.0f;
-	float minF = FLT_MAX;
 
 	int     i= threadData->begin ;
 	int     end= threadData->end ;	
@@ -164,21 +159,10 @@ void paralsin(threadData_t * threadData)
 
 		FVecss = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));
 
-		float result[4];
-		_mm_store_ps(result, FVecss);
-		float newMax = max(max(max(result[0], result[1]), result[2]), result[3]);
-		maxF = (newMax>maxF) ? newMax : maxF;
-		float newMin = min(min(min(result[0], result[1]), result[2]), result[3]);
-		minF = (newMin<minF) ? newMin : minF;
-		float sum_all = sum(sum(sum(result[0], result[1]), result[2]), result[3]);
-		avgF+=sum_all;
+		threadData->avgF= _mm_add_ps(FVecss,threadData->avgF);
+		threadData->maxF= _mm_max_ps(FVecss,threadData->maxF);
+		threadData->minF= _mm_min_ps(FVecss,threadData->minF);
 	}
-
-	threadData->avgF= avgF;
-	threadData->maxF= maxF;
-	threadData->minF= minF;
-
-
 }
 
 void syncThreadsBARRIER(threadData_t * threadData)
@@ -247,9 +231,13 @@ void * thread (void * x)
 int main(int argc, char ** argv)
 {	
 	assert(argc==2);
-	float avgF;	
-	float maxF;	
-	float minF;
+
+
+	float avgF = 0.0f;
+	float maxF = 0.0f;
+	float minF = FLT_MAX;
+
+
 	double timeTotalMainStart = gettime();
 	unsigned int N = (unsigned int)atoi(argv[1]);
 	unsigned int iters = 10;
@@ -320,18 +308,23 @@ int main(int argc, char ** argv)
 		startThreadOperations(threadData, LOOP);		
 	}
 
-
-
-	avgF = ((&threadData[0])->avgF + (&threadData[1])->avgF);
-	maxF = ((&threadData[1])->maxF);
-	maxF = ((&threadData[0])->maxF>(&threadData[1])->maxF)?(&threadData[0])->maxF:maxF;
-	minF = ((&threadData[1])->minF);
-	minF = ((&threadData[0])->minF>(&threadData[1])->minF)?(&threadData[0])->minF:minF;
+	float maxl[4];
+	float minl[4];
+	float suml[4];
 
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
-	
+	for (unsigned int k=0;k<threads;k++)
+	{
+		_mm_store_ps(maxl, (&threadData[k])->maxF);
+		_mm_store_ps(minl, (&threadData[k])->minF);
+		_mm_store_ps(suml, (&threadData[k])->avgF);
+		maxF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),maxF);
+		minF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),minF);
+		avgF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),avgF);
+		
+	}
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);

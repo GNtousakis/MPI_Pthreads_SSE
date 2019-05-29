@@ -98,9 +98,9 @@ float randpval (void);
 	for(unsigned int j=0;j<iters;j++)
 	{
 
-		maxg= _mm_set_ps(0,0,0,0);
+		maxg= _mm_set_ps(0.0f,0.0f,0.0f,0.0f);
 		ming= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
-		sumg= _mm_set_ps(0,0,0,0);
+		sumg= _mm_set_ps(0.0f,0.0f,0.0f,0.0f);
 
 		for(unsigned int i=0;i<N; i+=4)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
 		{
