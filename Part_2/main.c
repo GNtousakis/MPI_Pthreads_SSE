@@ -113,6 +113,17 @@ void updateThreadData(threadData_t * threadData, int number)
 }
 
 
+void updateThreadMMA(threadData_t * threadData)
+{
+	for (int unsigned i=0;i<(threadData->threadTOTAL);i+=1){
+		threadData[i].maxF=0;
+		threadData[i].minF=0;
+		threadData[i].avgF=FLT_MAX;		
+	}
+}
+
+
+
 void paralsin(threadData_t * threadData)
 {
 	__m128 variable,variable1,variable2,variable3,variable4,variable5,variable6;
@@ -298,22 +309,19 @@ int main(int argc, char ** argv)
 
 	for(unsigned int j=0;j<iters;j++)
 	{
-		avgF = 0.0f;
-		maxF = 0.0f;
-		minF = FLT_MAX;
+		updateThreadMMA(threadData);
 		for(unsigned int i=0;i<N;i+=(4*threads))
 		{
 			updateThreadData(threadData,i);
 			startThreadOperations(threadData, LOOP);		
-		}
-
-		avgF = ((&threadData[0])->avgF + (&threadData[1])->avgF);
-		maxF = ((&threadData[1])->maxF);
-		maxF = ((&threadData[0])->maxF>(&threadData[1])->maxF)?(&threadData[0])->maxF:maxF;
-		minF = ((&threadData[1])->minF);
-		minF = ((&threadData[0])->minF>(&threadData[1])->minF)?(&threadData[0])->minF:minF;
-		
+		}	
 	}
+
+	avgF = ((&threadData[0])->avgF + (&threadData[1])->avgF);
+	maxF = ((&threadData[1])->maxF);
+	maxF = ((&threadData[0])->maxF>(&threadData[1])->maxF)?(&threadData[0])->maxF:maxF;
+	minF = ((&threadData[1])->minF);
+	minF = ((&threadData[0])->minF>(&threadData[1])->minF)?(&threadData[0])->minF:minF;
 
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
