@@ -90,15 +90,18 @@ float randpval (void);
 	__m128 scale2 = _mm_set_ps1(1.0f);
 	__m128 scale3 = _mm_set_ps1(2.0f);
 
-
-
+	__m128 maxg;
+	__m128 ming;
+	__m128 sumg;
 
 	double timeOmegaTotalStart = gettime();
 	for(unsigned int j=0;j<iters;j++)
 	{
-	avgF = 0.0f;
-	maxF = 0.0f;
-	minF = FLT_MAX;
+
+		maxg= _mm_set_ps(0,0,0,0);
+		ming= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
+		sumg= _mm_set_ps(0,0,0,0);
+
 		for(unsigned int i=0;i<N; i+=4)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
 		{
 
@@ -119,20 +122,29 @@ float randpval (void);
 
 			FVecss = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));//!
 
-			float result[4];
-			_mm_store_ps(result, FVecss);
-			float newMax = max(max(max(result[0], result[1]), result[2]), result[3]);
-			maxF = (newMax>maxF) ? newMax : maxF;
-			float newMin = min(min(min(result[0], result[1]), result[2]), result[3]);
-			minF = (newMin<minF) ? newMin : minF;
-			float sum_all = sum(sum(sum(result[0], result[1]), result[2]), result[3]);
-			avgF+=sum_all;
+			maxg= _mm_max_ps(FVecss,maxg);
+			ming= _mm_min_ps(FVecss,ming);
+			sumg= _mm_add_ps(FVecss,sumg);
+			
 		}
-
 	}
 
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
+
+	float maxl[4];
+	float minl[4];
+	float suml[4];
+
+	_mm_store_ps(maxl, maxg);
+	_mm_store_ps(minl, ming);
+	_mm_store_ps(suml, sumg);
+
+	maxF = max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]);
+	minF = min(min(min(minl[0], minl[1]), minl[2]), minl[3]);
+	avgF = sum(sum(sum(suml[0], suml[1]), suml[2]), suml[3]);
+	
+
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
 	_mm_free(mVec);
