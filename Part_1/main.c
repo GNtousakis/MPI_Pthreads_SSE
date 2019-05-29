@@ -140,10 +140,23 @@ float randpval (void);
 	_mm_store_ps(minl, ming);
 	_mm_store_ps(suml, sumg);
 
+	maxF = maxl[0];
+    maxF = maxl[1] > maxF ? maxl[1] : maxF;
+    maxF = maxl[2] > maxF ? maxl[2] : maxF;
+    maxF = maxl[3] > maxF ? maxl[3] : maxF;
+
+    minF = minl[0];
+    minF = minl[1] < minF ? minl[1] : minF;
+    minF = minl[2] < minF ? minl[2] : minF;
+    minF = minl[3] < minF ? minl[3] : minF;
+
+    avgF = suml[0] + suml[1] + suml[2] + suml[3];
+
+/*
 	maxF = max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]);
 	minF = min(min(min(minl[0], minl[1]), minl[2]), minl[3]);
 	avgF = sum(sum(sum(suml[0], suml[1]), suml[2]), suml[3]);
-	
+*/
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
