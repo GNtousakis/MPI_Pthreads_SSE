@@ -129,8 +129,7 @@ float randpval (void);
 		}
 	}
 
-	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
-	double timeTotalMainStop = gettime();
+	
 
 	float maxl[4];
 	float minl[4];
@@ -157,6 +156,8 @@ float randpval (void);
 	minF = min(min(min(minl[0], minl[1]), minl[2]), minl[3]);
 	avgF = sum(sum(sum(suml[0], suml[1]), suml[2]), suml[3]);
 */
+    double timeOmegaTotal = gettime()-timeOmegaTotalStart;
+	double timeTotalMainStop = gettime();
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
