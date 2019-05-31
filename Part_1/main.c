@@ -135,20 +135,12 @@ int main(int argc, char ** argv)
 			variable3= _mm_div_ps(variable,variable3);
 
 
-/////////////////////////////////////////////////////////////////////
 			variable4=_mm_sub_ps(CVecss1[i],LVecss1[i]);
 			variable4=_mm_sub_ps(variable4,RVecss1[i]);
 			
-			
-
 			variable5=_mm_mul_ps(mVecss1[i],nVecss1[i]);//!
 
 			variable6=_mm_div_ps(variable4,variable5);//!
-
-			for (int ii = 0; ii < 4; ++ii)
-			{
-				printf("%f ----\n",variable6[ii] );
-			}
 
 			FVecss1[i]=_mm_add_ps(variable6 ,scale1);
 			FVecss1[i]= _mm_div_ps(variable3,FVecss1[i]);//!
