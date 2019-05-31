@@ -88,8 +88,6 @@ int main(int argc, char ** argv){
 			float den_1 = mVec[i]*nVec[i];
 			float den = den_0/den_1;
 
-			printf("%f ----\n",den );
-
 			FVec[i] = num/(den+0.01f);
 
 
