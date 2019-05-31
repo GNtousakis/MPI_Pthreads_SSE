@@ -12,48 +12,36 @@
 double gettime(void);
 float randpval (void);
 
-
-
-double gettime(void)
-{
+	double gettime(void)
+	{
 	struct timeval ttime;
 	gettimeofday(&ttime , NULL);
 	return ttime.tv_sec + ttime.tv_usec * 0.000001;
-}
+	}
 
-float randpval (void)
-{
+	float randpval (void)
+	{
 	int vr = rand();
 	int vm = rand()%vr;
 	float r = ((float)vm)/(float)vr;
 	assert(r>=0.0f && r<=1.00001f);
 	return r;
-}
+	}
 
-float max(float a, float b) {
+	float max(float a, float b) {
 	if (a>b)
 		return a;
 	return b;
-}
+	}
 
-float min(float a, float b) {
+	float min(float a, float b) {
 	if (a<b)
 		return a;
 	return b;
-}
-	
-float sum(float a,float b){
+	}
+	float sum(float a,float b){
 		return(a+b);
-}
-
-typedef struct{
-		float mVec;
-		float nVec;
-		float LVec;
-		float RVec;
-		float CVec;
-		float FVec;
-} ness_data;	
+	}
 
 	 int main(int argc, char ** argv)
 	{
@@ -66,13 +54,8 @@ typedef struct{
 	 unsigned int iters = 10;
 	 srand(1);
 
-	 //Should get better results
-	 ness_data * all_data = (ness_data *)_mm_malloc(sizeof(ness_data)*N,16);
+	 float * alldata= (float*)_mm_malloc(sizeof(float)*N*6,16)
 
-	 assert(all_data!=NULL);
-
-
-/*
 	 float * mVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	 assert(mVec!=NULL);
 	 float * nVec = (float*)_mm_malloc(sizeof(float)*N,16);
@@ -85,23 +68,21 @@ typedef struct{
 	 assert(CVec!=NULL);
 	 float * FVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	 assert(FVec!=NULL);
-*/
-
 
 	for(unsigned int i=0;i<N;i++)
 	{
-	all_data[i].mVec  = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-	all_data[i].nVec = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-	all_data[i].LVec = randpval()*all_data[i].mVec;
-	all_data[i].RVec = randpval()*all_data[i].nVec;
-	all_data[i].CVec = randpval()*all_data[i].mVec*all_data[i].nVec;
-	all_data[i].FVec = 0.0;
+	mVec[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
+	nVec[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
+	LVec[i] = randpval()*mVec[i];
+	RVec[i] = randpval()*nVec[i];
+	CVec[i] = randpval()*mVec[i]*nVec[i];
+	FVec[i] = 0.0;
 
-	assert(all_data[i].mVec>=MINSNPS_B && all_data[i].mVec<=(MINSNPS_B+MAXSNPS_E));
-	assert(all_data[i].nVec>=MINSNPS_B && all_data[i].nVec<=(MINSNPS_B+MAXSNPS_E));
-	assert(all_data[i].LVec>=0.0f && all_data[i].LVec<=1.0f*all_data[i].mVec);
-	assert(all_data[i].RVec>=0.0f && all_data[i].RVec<=1.0f*all_data[i].nVec);
-	assert(all_data[i].CVec>=0.0f && all_data[i].CVec<=1.0f*all_data[i].mVec*all_data[i].nVec);
+	assert(mVec[i]>=MINSNPS_B && mVec[i]<=(MINSNPS_B+MAXSNPS_E));
+	assert(nVec[i]>=MINSNPS_B && nVec[i]<=(MINSNPS_B+MAXSNPS_E));
+	assert(LVec[i]>=0.0f && LVec[i]<=1.0f*mVec[i]);
+	assert(RVec[i]>=0.0f && RVec[i]<=1.0f*nVec[i]);
+	assert(CVec[i]>=0.0f && CVec[i]<=1.0f*mVec[i]*nVec[i]);
 	}
 
 
@@ -116,6 +97,13 @@ typedef struct{
 	__m128 ming;
 	__m128 sumg;
 
+	__m128 *LVecss1= (__m128 *) LVec;
+	__m128 *RVecss1= (__m128 *) RVec;
+	__m128 *mVecss1= (__m128 *) mVec;
+	__m128 *nVecss1= (__m128 *) nVec;
+	__m128 *CVecss1= (__m128 *) CVec;
+	__m128 *FVecss1= (__m128 *) FVec;
+
 	double timeOmegaTotalStart = gettime();
 	for(unsigned int j=0;j<iters;j++)
 	{
@@ -124,35 +112,27 @@ typedef struct{
 		ming= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
 		sumg= _mm_set_ps(0.0f,0.0f,0.0f,0.0f);
 
-		for(unsigned int i=0;i<N; i+=4)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
+		for(unsigned int i=0;i<N/4; i+=1)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
 		{
 
-			__m128 LVecss= _mm_set_ps(all_data[i+3].LVec, all_data[i+2].LVec, all_data[i+1].LVec, all_data[i].LVec);
-			__m128 RVecss= _mm_set_ps(all_data[i+3].RVec, all_data[i+2].RVec, all_data[i+1].RVec, all_data[i].RVec);
-			__m128 mVecss= _mm_set_ps(all_data[i+3].mVec, all_data[i+2].mVec, all_data[i+1].mVec, all_data[i].mVec);
-			__m128 nVecss= _mm_set_ps(all_data[i+3].nVec, all_data[i+2].nVec, all_data[i+1].nVec, all_data[i].nVec);
-			__m128 CVecss= _mm_set_ps(all_data[i+3].CVec, all_data[i+2].CVec, all_data[i+1].CVec, all_data[i].CVec);
-			__m128 FVecss= _mm_set_ps(all_data[i+3].FVec, all_data[i+2].FVec, all_data[i+1].FVec, all_data[i].FVec);
-
-			variable= _mm_add_ps(LVecss, RVecss);//!
-			variable1= _mm_div_ps( _mm_mul_ps(mVecss, _mm_sub_ps(mVecss,scale2))  ,  scale3);//!
-			variable2= _mm_div_ps( _mm_mul_ps(nVecss, _mm_sub_ps(nVecss,scale2))  ,  scale3);//!
+			variable= _mm_add_ps(LVecss1[i], RVecss1[i]);//!
+			variable1= _mm_div_ps( _mm_mul_ps(mVecss1[i], _mm_sub_ps(mVecss1[i],scale2))  ,  scale3);//!
+			variable2= _mm_div_ps( _mm_mul_ps(nVecss1[i], _mm_sub_ps(nVecss1[i],scale2))  ,  scale3);//!
 			variable3= _mm_div_ps(variable,_mm_add_ps(variable1,variable2));//!
-			variable4=_mm_sub_ps(CVecss,_mm_sub_ps(LVecss,RVecss));//!
-			variable5=_mm_mul_ps(mVecss,nVecss);//!
+			variable4=_mm_sub_ps(CVecss1[i],_mm_sub_ps(LVecss1[i],RVecss1[i]));//!
+			variable5=_mm_mul_ps(mVecss1[i],nVecss1[i]);//!
 			variable6=_mm_div_ps(variable4,variable5);//!
 
-			FVecss = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));//!
+			FVecss1[i] = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));//!
 
-			maxg= _mm_max_ps(FVecss,maxg);
-			ming= _mm_min_ps(FVecss,ming);
-			sumg= _mm_add_ps(FVecss,sumg);
+			maxg= _mm_max_ps(FVecss1[i],maxg);
+			ming= _mm_min_ps(FVecss1[i],ming);
+			sumg= _mm_add_ps(FVecss1[i],sumg);
 			
 		}
 	}
 
-	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
-	double timeTotalMainStop = gettime();
+	
 
 	float maxl[4];
 	float minl[4];
@@ -179,9 +159,15 @@ typedef struct{
 	minF = min(min(min(minl[0], minl[1]), minl[2]), minl[3]);
 	avgF = sum(sum(sum(suml[0], suml[1]), suml[2]), suml[3]);
 */
+    double timeOmegaTotal = gettime()-timeOmegaTotalStart;
+	double timeTotalMainStop = gettime();
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
-	_mm_free(all_data);
-	
+	_mm_free(mVec);
+	_mm_free(nVec);
+	_mm_free(LVec);
+	_mm_free(RVec);
+	_mm_free(CVec);
+	_mm_free(FVec);
 }
