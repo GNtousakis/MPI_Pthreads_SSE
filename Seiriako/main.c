@@ -36,9 +36,11 @@ int main(int argc, char ** argv){
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;
+
 	unsigned int N = (unsigned int)atoi(argv[1]);
 	unsigned int iters = 10;
 	srand(1);
+
 	float * mVec = (float*)malloc(sizeof(float)*N);
 	assert(mVec!=NULL);
 	float * nVec = (float*)malloc(sizeof(float)*N);
@@ -79,10 +81,18 @@ int main(int argc, char ** argv){
 			float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
 			float num_2 = nVec[i]*(nVec[i]-1.0f)/2.0f;
 			float num = num_0/(num_1+num_2);
+
+
+
 			float den_0 = CVec[i]-LVec[i]-RVec[i];
 			float den_1 = mVec[i]*nVec[i];
 			float den = den_0/den_1;
+
+			printf("%f ----\n",den );
+
 			FVec[i] = num/(den+0.01f);
+
+
 			maxF = FVec[i]>maxF?FVec[i]:maxF;
 			minF = FVec[i]<minF?FVec[i]:minF;
 			avgF += FVec[i];

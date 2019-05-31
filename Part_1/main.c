@@ -36,8 +36,11 @@ int main(int argc, char ** argv)
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;
+
 	unsigned int N = (unsigned int)atoi(argv[1]);
 	unsigned int iters = 10;
+	unsigned int leftover= N%4;
+
 	srand(1);
 
 	float * mVec = (float*)_mm_malloc(sizeof(float)*N,16);
@@ -52,7 +55,22 @@ int main(int argc, char ** argv)
 	assert(CVec!=NULL);
 	float * FVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	assert(FVec!=NULL);
+	float * maxg = (float*)_mm_malloc(sizeof(float),16);
+	assert(maxg!=NULL);
+	float * ming = (float*)_mm_malloc(sizeof(float),16);
+	assert(ming!=NULL);
+	float * sumg = (float*)_mm_malloc(sizeof(float),16);
+	assert(sumg!=NULL);
 
+	//We give some values to max min sum so we can compare with real values
+	for (int i = 0; i < 4; ++i)
+	{
+		maxg[i]=0.0f;
+		ming[i]=FLT_MAX;
+		sumg[i]=0.0f;
+	}
+
+	//Initialize the data
 	for(unsigned int i=0;i<N;i++)
 	{
 		mVec[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
@@ -69,7 +87,6 @@ int main(int argc, char ** argv)
 		assert(CVec[i]>=0.0f && CVec[i]<=1.0f*mVec[i]*nVec[i]);
 	}
 
-
 	__m128 variable,variable1,variable2,variable3,variable4,variable5,variable6;
 
 
@@ -77,9 +94,6 @@ int main(int argc, char ** argv)
 	__m128 scale2 = _mm_set_ps1(1.0f);
 	__m128 scale3 = _mm_set_ps1(2.0f);
 
-	__m128 maxg;
-	__m128 ming;
-	__m128 sumg;
 
 	__m128 *LVecss1= (__m128 *) LVec;
 	__m128 *RVecss1= (__m128 *) RVec;
@@ -88,55 +102,97 @@ int main(int argc, char ** argv)
 	__m128 *CVecss1= (__m128 *) CVec;
 	__m128 *FVecss1= (__m128 *) FVec;
 
+	__m128 *maxg1= (__m128 *) maxg;
+	__m128 *ming1= (__m128 *) ming;
+	__m128 *sumg1= (__m128 *) sumg;
+
+
+
 	double timeOmegaTotalStart = gettime();
+
 	for(unsigned int j=0;j<iters;j++)
 	{
 
-		maxg= _mm_set_ps(0.0f,0.0f,0.0f,0.0f);
-		ming= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
-		sumg= _mm_set_ps(0.0f,0.0f,0.0f,0.0f);
+		avgF = 0.0f;
+		maxF = 0.0f;
+		minF = FLT_MAX;
 
 		for(unsigned int i=0;i<N/4; i+=1)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
 		{
 
-			variable= _mm_add_ps(LVecss1[i], RVecss1[i]);//!
-			variable1= _mm_div_ps( _mm_mul_ps(mVecss1[i], _mm_sub_ps(mVecss1[i],scale2))  ,  scale3);//!
-			variable2= _mm_div_ps( _mm_mul_ps(nVecss1[i], _mm_sub_ps(nVecss1[i],scale2))  ,  scale3);//!
-			variable3= _mm_div_ps(variable,_mm_add_ps(variable1,variable2));//!
-			variable4=_mm_sub_ps(CVecss1[i],_mm_sub_ps(LVecss1[i],RVecss1[i]));//!
+			variable= _mm_add_ps(LVecss1[i], RVecss1[i]);
+
+			variable1= _mm_sub_ps(mVecss1[i],scale2);
+			variable1= _mm_div_ps(variable1 ,scale3);
+			variable1= _mm_mul_ps(mVecss1[i],variable1);
+			
+
+			variable2= _mm_sub_ps(nVecss1[i],scale2);
+			variable2= _mm_div_ps(variable2 ,scale3);
+			variable2= _mm_mul_ps(nVecss1[i],variable2);
+
+			variable3=_mm_add_ps(variable1,variable2);
+			variable3= _mm_div_ps(variable,variable3);
+
+
+/////////////////////////////////////////////////////////////////////
+			variable4=_mm_sub_ps(CVecss1[i],LVecss1[i]);
+			variable4=_mm_sub_ps(variable4,RVecss1[i]);
+			
+			
+
 			variable5=_mm_mul_ps(mVecss1[i],nVecss1[i]);//!
+
 			variable6=_mm_div_ps(variable4,variable5);//!
 
-			FVecss1[i] = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));//!
+			for (int ii = 0; ii < 4; ++ii)
+			{
+				printf("%f ----\n",variable6[ii] );
+			}
 
-			maxg= _mm_max_ps(FVecss1[i],maxg);
-			ming= _mm_min_ps(FVecss1[i],ming);
-			sumg= _mm_add_ps(FVecss1[i],sumg);
+			FVecss1[i]=_mm_add_ps(variable6 ,scale1);
+			FVecss1[i]= _mm_div_ps(variable3,FVecss1[i]);//!
+
+			*maxg1= _mm_max_ps(*maxg1,FVecss1[i]);
+			*ming1= _mm_min_ps(FVecss1[i],*ming1);
+			*sumg1= _mm_add_ps(FVecss1[i],*sumg1);
 			
 		}
+
+
+		maxF = maxg[0];
+   		maxF = maxg[1] > maxF ? maxg[1] : maxF;
+   		maxF = maxg[2] > maxF ? maxg[2] : maxF;
+   		maxF = maxg[3] > maxF ? maxg[3] : maxF;
+
+   		minF = ming[0];
+   		minF = ming[1] < minF ? ming[1] : minF;
+   		minF = ming[2] < minF ? ming[2] : minF;
+   		minF = ming[3] < minF ? ming[3] : minF;
+
+   		avgF = sumg[0] + sumg[1] + sumg[2] + sumg[3]; 	
+
+
+   		//We fix the left overs
+   		for(unsigned int i=N-leftover;i<N;i++)
+		{
+			float num_0 = LVec[i]+RVec[i];
+			float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
+			float num_2 = nVec[i]*(nVec[i]-1.0f)/2.0f;
+			float num = num_0/(num_1+num_2);
+
+			float den_0 = CVec[i]-LVec[i]-RVec[i];
+			float den_1 = mVec[i]*nVec[i];
+			float den = den_0/den_1;
+
+			FVec[i] = num/(den+0.01f);
+			
+			maxF = FVec[i]>maxF?FVec[i]:maxF;
+			minF = FVec[i]<minF?FVec[i]:minF;
+			avgF += FVec[i];
+		}	 
 	}
 	
-
-	float maxl[4];
-	float minl[4];
-	float suml[4];
-
-	_mm_store_ps(maxl, maxg);
-	_mm_store_ps(minl, ming);
-	_mm_store_ps(suml, sumg);
-
-	maxF = maxl[0];
-   	maxF = maxl[1] > maxF ? maxl[1] : maxF;
-   	maxF = maxl[2] > maxF ? maxl[2] : maxF;
-   	maxF = maxl[3] > maxF ? maxl[3] : maxF;
-
-   	minF = minl[0];
-   	minF = minl[1] < minF ? minl[1] : minF;
-   	minF = minl[2] < minF ? minl[2] : minF;
-   	minF = minl[3] < minF ? minl[3] : minF;
-
-   	avgF = suml[0] + suml[1] + suml[2] + suml[3];
-
    	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
@@ -148,4 +204,5 @@ int main(int argc, char ** argv)
 	_mm_free(RVec);
 	_mm_free(CVec);
 	_mm_free(FVec);
+
 }
