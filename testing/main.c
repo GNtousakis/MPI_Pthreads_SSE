@@ -43,12 +43,6 @@ int main(int argc, char ** argv)
 
 	srand(1);
 
-
-	// mVec nVec LVec RVec CVec FVec
-	float * alldata = (float*)_mm_malloc(sizeof(float)*N*6,16);
-	assert(alldata!=NULL);
-
-/*
 	float * mVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	assert(mVec!=NULL);
 	float * nVec = (float*)_mm_malloc(sizeof(float)*N,16);
@@ -61,8 +55,6 @@ int main(int argc, char ** argv)
 	assert(CVec!=NULL);
 	float * FVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	assert(FVec!=NULL);
-*/
-
 	float * maxg = (float*)_mm_malloc(sizeof(float),16);
 	assert(maxg!=NULL);
 	float * ming = (float*)_mm_malloc(sizeof(float),16);
@@ -79,44 +71,22 @@ int main(int argc, char ** argv)
 	}
 
 	//Initialize the data
-	//  mVec 0  nVec 1 LVec 2 RVec 3 CVec 4 FVec 5
-
-	for(unsigned int i=0;i<(N*6);i+=24)
+	for(unsigned int i=0;i<N;i++)
 	{
-		//mVec
-		alldata[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+4] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+12] = randpval()*alldata[i];
-		alldata[i+16] = randpval()*alldata[i+4];
-		alldata[i+8] = randpval()*alldata[i]*alldata[i+4];
-		alldata[i+20] = 0.0;
+		mVec[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
+		nVec[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
+		LVec[i] = randpval()*mVec[i];
+		RVec[i] = randpval()*nVec[i];
+		CVec[i] = randpval()*mVec[i]*nVec[i];
+		FVec[i] = 0.0;
 
-		alldata[i+1] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+5] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+13] = randpval()*alldata[i+1];
-		alldata[i+17] = randpval()*alldata[i+5];
-		alldata[i+9] = randpval()*alldata[i+1]*alldata[i+5];
-		alldata[i+21] = 0.0;
-
-		alldata[i+2] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+6] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+14] = randpval()*alldata[i+2];
-		alldata[i+18] = randpval()*alldata[i+6];
-		alldata[i+10] = randpval()*alldata[i+2]*alldata[i+6];
-		alldata[i+22] = 0.0;
-
-		alldata[i+3] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+7] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
-		alldata[i+15] = randpval()*alldata[i+3];
-		alldata[i+19] = randpval()*alldata[i+7];
-		alldata[i+11] = randpval()*alldata[i+3]*alldata[i+7];
-		alldata[i+23] = 0.0;
-
-
-
+		assert(mVec[i]>=MINSNPS_B && mVec[i]<=(MINSNPS_B+MAXSNPS_E));
+		assert(nVec[i]>=MINSNPS_B && nVec[i]<=(MINSNPS_B+MAXSNPS_E));
+		assert(LVec[i]>=0.0f && LVec[i]<=1.0f*mVec[i]);
+		assert(RVec[i]>=0.0f && RVec[i]<=1.0f*nVec[i]);
+		assert(CVec[i]>=0.0f && CVec[i]<=1.0f*mVec[i]*nVec[i]);
 	}
 
-	
 
 	__m128 variable,variable1,variable2,variable3,variable4,variable5,variable6;
 
@@ -126,7 +96,12 @@ int main(int argc, char ** argv)
 	__m128 scale3 = _mm_set_ps1(2.0f);
 
 
-	__m128 * data128 = (__m128 *) alldata;
+	__m128 *LVecss1= (__m128 *) LVec;
+	__m128 *RVecss1= (__m128 *) RVec;
+	__m128 *mVecss1= (__m128 *) mVec;
+	__m128 *nVecss1= (__m128 *) nVec;
+	__m128 *CVecss1= (__m128 *) CVec;
+	__m128 *FVecss1= (__m128 *) FVec;
 
 	__m128 *maxg1= (__m128 *) maxg;
 	__m128 *ming1= (__m128 *) ming;
@@ -143,37 +118,37 @@ int main(int argc, char ** argv)
 		maxF = 0.0f;
 		minF = FLT_MAX;
 
-		for(unsigned int i=0;i<(N*6)/4; i+=6)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
+		for(unsigned int i=0;i<N/4; i+=1)//check this later for any changes!!!!!!!!!!!!!!!!!!!!!!!!!!
 		{
 
-			variable= _mm_add_ps(data128[i+3], data128[i+4]);
+			variable= _mm_add_ps(LVecss1[i], RVecss1[i]);
 
-			variable1= _mm_sub_ps(data128[i],scale2);
+			variable1= _mm_sub_ps(mVecss1[i],scale2);
 			variable1= _mm_div_ps(variable1 ,scale3);
-			variable1= _mm_mul_ps(data128[i],variable1);
+			variable1= _mm_mul_ps(mVecss1[i],variable1);
 			
 
-			variable2= _mm_sub_ps(data128[i+1],scale2);
+			variable2= _mm_sub_ps(nVecss1[i],scale2);
 			variable2= _mm_div_ps(variable2 ,scale3);
-			variable2= _mm_mul_ps(data128[i+1],variable2);
+			variable2= _mm_mul_ps(nVecss1[i],variable2);
 
 			variable3=_mm_add_ps(variable1,variable2);
 			variable3= _mm_div_ps(variable,variable3);
 
 
-			variable4=_mm_sub_ps(data128[i+2],data128[i+3]);
-			variable4=_mm_sub_ps(variable4,data128[i+4]);
+			variable4=_mm_sub_ps(CVecss1[i],LVecss1[i]);
+			variable4=_mm_sub_ps(variable4,RVecss1[i]);
 			
-			variable5=_mm_mul_ps(data128[i],data128[i+1]);
+			variable5=_mm_mul_ps(mVecss1[i],nVecss1[i]);//!
 
-			variable6=_mm_div_ps(variable4,variable5);
+			variable6=_mm_div_ps(variable4,variable5);//!
 
-			data128[i+5]=_mm_add_ps(variable6 ,scale1);
-			data128[i+5]= _mm_div_ps(variable3,data128[i+5]);//!
+			FVecss1[i]=_mm_add_ps(variable6 ,scale1);
+			FVecss1[i]= _mm_div_ps(variable3,FVecss1[i]);//!
 
-			*maxg1= _mm_max_ps(*maxg1,data128[i+5]);
-			*ming1= _mm_min_ps(data128[i+5],*ming1);
-			*sumg1= _mm_add_ps(data128[i+5],*sumg1);
+			*maxg1= _mm_max_ps(*maxg1,FVecss1[i]);
+			*ming1= _mm_min_ps(FVecss1[i],*ming1);
+			*sumg1= _mm_add_ps(FVecss1[i],*sumg1);
 			
 		}
 
@@ -192,22 +167,22 @@ int main(int argc, char ** argv)
 
 
    		//We fix the left overs
-   		for(unsigned int i=N-leftover;i<N;i+=6)
+   		for(unsigned int i=N-leftover;i<N;i++)
 		{
-			float num_0 = alldata[i+3]+alldata[i+4];
-			float num_1 = alldata[i]*(alldata[i]-1.0f)/2.0f;
-			float num_2 = alldata[i+1]*(alldata[i+1]-1.0f)/2.0f;
+			float num_0 = LVec[i]+RVec[i];
+			float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
+			float num_2 = nVec[i]*(nVec[i]-1.0f)/2.0f;
 			float num = num_0/(num_1+num_2);
 
-			float den_0 = alldata[i+2]-alldata[i+3]-alldata[i+4];
-			float den_1 = alldata[i]*alldata[i+1];
+			float den_0 = CVec[i]-LVec[i]-RVec[i];
+			float den_1 = mVec[i]*nVec[i];
 			float den = den_0/den_1;
 
-			alldata[i+5] = num/(den+0.01f);
+			FVec[i] = num/(den+0.01f);
 			
-			maxF = alldata[i+5]>maxF?alldata[i+5]:maxF;
-			minF = alldata[i+5]<minF?alldata[i+5]:minF;
-			avgF += alldata[i+5];
+			maxF = FVec[i]>maxF?FVec[i]:maxF;
+			minF = FVec[i]<minF?FVec[i]:minF;
+			avgF += FVec[i];
 		}	 
 	}
 	
@@ -216,7 +191,11 @@ int main(int argc, char ** argv)
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
 	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
-	_mm_free(alldata);
-	
+	_mm_free(mVec);
+	_mm_free(nVec);
+	_mm_free(LVec);
+	_mm_free(RVec);
+	_mm_free(CVec);
+	_mm_free(FVec);
 
 }
