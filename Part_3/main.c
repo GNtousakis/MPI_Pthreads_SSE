@@ -6,8 +6,6 @@
 #include <float.h>
 #include <pthread.h>
 #include "xmmintrin.h"
-#include <mpi.h>
-
 
 #define MINSNPS_B 5
 #define MAXSNPS_E 20
@@ -42,25 +40,6 @@ float randpval (void)
 	return r;
 }
 
-float max(float a, float b) 
-{
-	if (a>b)
-		return a;
-	return b;
-}
-
-float min(float a, float b) 
-{
-	if (a<b)
-		return a;
-	return b;
-}
-
-float sum(float a,float b)
-{
-		return(a+b);
-}
-
 typedef struct 
 {
 	//Thread Data
@@ -74,17 +53,28 @@ typedef struct
 	int end;
 
 	//All the data 
-	float * mVec;
-	float * nVec;
-	float * LVec;
-	float * RVec;
-	float * CVec;
-	float * FVec;	
+	__m128 * mVec;
+	__m128 * nVec;
+	__m128 * LVec;
+	__m128 * RVec;
+	__m128 * CVec;
+	__m128 * FVec;	
 
 	//All the necessary values to get results
-	__m128 avgF;	
-	__m128 maxF;	
-	__m128 minF;	
+	float * maxg;
+	float * ming;
+	float * sumg;
+
+	__m128 * avgF;	
+	__m128 * maxF;	
+	__m128 * minF;	
+
+	float thread_max;
+	float thread_min;
+	float thread_sum;
+	
+
+
 
 }threadData_t;
 
@@ -95,29 +85,56 @@ void initializeThreadData(threadData_t * cur, int i, int threads,int n,float * m
 	cur->threadBARRIER=0;
 	cur->threadOPERATION=BUSYWAIT;
 
+	///We find the limits of loop
+
 	cur->begin=(n/threads)*i; 	
 	cur->end  =(n/threads)*(i+1);
 
-	cur->mVec=mVec1;
-	cur->nVec=nVec1;
-	cur->LVec=LVec1;
-	cur->RVec=RVec1;
-	cur->CVec=CVec1;
-	cur->FVec=FVec1;
+	cur->mVec= (__m128 *) mVec1;
+	cur->nVec= (__m128 *) nVec1;
+	cur->LVec= (__m128 *) LVec1;
+	cur->RVec= (__m128 *) RVec1;
+	cur->CVec= (__m128 *) CVec1;
+	cur->FVec= (__m128 *) FVec1;
 
-	cur->avgF= _mm_set_ps(0,0,0,0);
-	cur->maxF= _mm_set_ps(0,0,0,0);
-	cur->minF= _mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
+	cur->maxg = (float*)_mm_malloc(sizeof(float),16);
+	cur->ming = (float*)_mm_malloc(sizeof(float),16);
+	cur->sumg = (float*)_mm_malloc(sizeof(float),16);
+
+
+	for (int i = 0; i < 4; ++i)
+	{
+		cur->maxg[i]=0.0f;
+		cur->ming[i]=FLT_MAX;
+		cur->sumg[i]=0.0f;
+	}
+
+	cur->avgF= (__m128 *) cur->sumg;
+	cur->maxF= (__m128 *) cur->maxg;
+	cur->minF= (__m128 *) cur->ming;
+
+	cur->thread_max=0.0f;
+	cur->thread_min=FLT_MAX;
+	cur->thread_sum=0.0f;
 }
 
 
 void updateThreadMMA(threadData_t * threadData)
 {
 	for (int unsigned i=0;i<(threadData->threadTOTAL);i+=1){
-		threadData[i].maxF=_mm_set_ps(0,0,0,0);
-		threadData[i].minF=_mm_set_ps(FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX);
-		threadData[i].avgF=_mm_set_ps(0,0,0,0);
+		for (int l = 0; l < 4; ++l)
+		{
+			threadData[i].maxg[l]=0.0f;
+			threadData[i].ming[l]=FLT_MAX;
+			threadData[i].sumg[l]=0.0f;
+		}
+
+		threadData[i].thread_max=0.0f;
+		threadData[i].thread_min=FLT_MAX;
+		threadData[i].thread_sum=0.0f;	
+	
 	}
+
 }
 
 
@@ -125,46 +142,73 @@ void updateThreadMMA(threadData_t * threadData)
 void paralsin(threadData_t * threadData)
 {
 
-	__m128 variable,variable1,variable2,variable3,variable4,variable5,variable6;
-	__m128 scale1 = _mm_set_ps1(0.01f);
-	__m128 scale2 = _mm_set_ps1(1.0f);
-	__m128 scale3 = _mm_set_ps1(2.0f);
+	__m128   variable,variable1,variable2,variable3,variable4,variable5,variable6;
+	__m128   scale1 = _mm_set_ps1(0.01f);
+	__m128 	 scale2 = _mm_set_ps1(1.0f);
+	__m128   scale3 = _mm_set_ps1(2.0f);
 
-	int     i= threadData->begin ;
-	int     end= threadData->end ;	
+	int      i= threadData->begin ;
+	int      end= threadData->end ;	
 
-	float * mVec=threadData->mVec;
-	float * nVec=threadData->nVec;
-	float * LVec=threadData->LVec;
-	float * RVec=threadData->RVec;
-	float * CVec=threadData->CVec;
-	float * FVec=threadData->FVec;
+	__m128 * mVec=threadData->mVec;
+	__m128 * nVec=threadData->nVec;
+	__m128 * LVec=threadData->LVec;
+	__m128 * RVec=threadData->RVec;
+	__m128 * CVec=threadData->CVec;
+	__m128 * FVec=threadData->FVec;
+	
+	__m128 * sumg=threadData->avgF;
+	__m128 * maxg=threadData->maxF;
+	__m128 * ming=threadData->minF;
+
+	for(i=i/4;i<end/4;i+=1)
+	{
+		variable= _mm_add_ps(LVec[i], RVec[i]);
+
+		variable1= _mm_sub_ps(mVec[i],scale2);
+		variable1= _mm_div_ps(variable1 ,scale3);
+		variable1= _mm_mul_ps(mVec[i],variable1);
+			
+
+		variable2= _mm_sub_ps(nVec[i],scale2);
+		variable2= _mm_div_ps(variable2 ,scale3);
+		variable2= _mm_mul_ps(nVec[i],variable2);
+
+		variable3=_mm_add_ps(variable1,variable2);
+		variable3= _mm_div_ps(variable,variable3);
+
+
+		variable4=_mm_sub_ps(CVec[i],LVec[i]);
+		variable4=_mm_sub_ps(variable4,RVec[i]);
+			
+		variable5=_mm_mul_ps(mVec[i],nVec[i]);//!
+
+		variable6=_mm_div_ps(variable4,variable5);//!
+
+		FVec[i]=_mm_add_ps(variable6 ,scale1);
+		FVec[i]= _mm_div_ps(variable3,FVec[i]);//!
+
 	
 
-	for(;i<end;i+=4)
-	{
-
-		__m128 LVecss= _mm_set_ps(LVec[i+3], LVec[i+2], LVec[i+1], LVec[i]);
-		__m128 RVecss= _mm_set_ps(RVec[i+3], RVec[i+2], RVec[i+1], RVec[i]);
-		__m128 mVecss= _mm_set_ps(mVec[i+3], mVec[i+2], mVec[i+1], mVec[i]);
-		__m128 nVecss= _mm_set_ps(nVec[i+3], nVec[i+2], nVec[i+1], nVec[i]);
-		__m128 CVecss= _mm_set_ps(CVec[i+3], CVec[i+2], CVec[i+1], CVec[i]);
-		__m128 FVecss= _mm_set_ps(FVec[i+3], FVec[i+2], FVec[i+1], FVec[i]);
-
-		variable= _mm_add_ps(LVecss, RVecss);
-		variable1= _mm_div_ps( _mm_mul_ps(mVecss, _mm_sub_ps(mVecss,scale2))  ,  scale3);
-		variable2= _mm_div_ps( _mm_mul_ps(nVecss, _mm_sub_ps(nVecss,scale2))  ,  scale3);
-		variable3= _mm_div_ps(variable,_mm_add_ps(variable1,variable2));
-		variable4=_mm_sub_ps(CVecss,_mm_sub_ps(LVecss,RVecss));
-		variable5=_mm_mul_ps(mVecss,nVecss);
-		variable6=_mm_div_ps(variable4,variable5);
-
-		FVecss = _mm_div_ps(variable3, _mm_add_ps(variable6, scale1));
-
-		threadData->avgF= _mm_add_ps(FVecss,threadData->avgF);
-		threadData->maxF= _mm_max_ps(FVecss,threadData->maxF);
-		threadData->minF= _mm_min_ps(FVecss,threadData->minF);
+		*maxg= _mm_max_ps(*maxg,FVec[i]);
+		*ming= _mm_min_ps(FVec[i],*ming);
+		*sumg= _mm_add_ps(FVec[i],*sumg);
 	}
+		
+
+	//The nessasary redution
+	threadData->thread_max = threadData->maxg[0];
+   	threadData->thread_max = threadData->maxg[1] > threadData->thread_max ? threadData->maxg[1] : threadData->thread_max;
+   	threadData->thread_max = threadData->maxg[2] > threadData->thread_max ? threadData->maxg[2] : threadData->thread_max;
+   	threadData->thread_max = threadData->maxg[3] > threadData->thread_max ? threadData->maxg[3] : threadData->thread_max;
+
+   	threadData->thread_min = threadData->ming[0];
+   	threadData->thread_min = threadData->ming[1] < threadData->thread_min ? threadData->ming[1] : threadData->thread_min;
+   	threadData->thread_min = threadData->ming[2] < threadData->thread_min ? threadData->ming[2] : threadData->thread_min;
+   	threadData->thread_min = threadData->ming[3] < threadData->thread_min ? threadData->ming[3] : threadData->thread_min;
+	
+   	threadData->thread_sum = threadData->sumg[0] + threadData->sumg[1] + threadData->sumg[2] + threadData->sumg[3]; 
+
 }
 
 void syncThreadsBARRIER(threadData_t * threadData)
@@ -234,27 +278,20 @@ int main(int argc, char ** argv)
 {	
 	assert(argc==2);
 
-	// Initialize the MPI environment
-    MPI_Init(NULL, NULL);
-    // Get the number of processes
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-
-    // Get the rank of the process
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-    
-
+	int threads = THREADS;	//We pass the number of threads 
 
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;
 
 
-
 	double timeTotalMainStart = gettime();
 	unsigned int N = (unsigned int)atoi(argv[1]);
 	unsigned int iters = 10;
+
+	
+
+
 	srand(1);
 	float * mVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	assert(mVec!=NULL);
@@ -268,11 +305,11 @@ int main(int argc, char ** argv)
 	assert(CVec!=NULL);
 	float * FVec = (float*)_mm_malloc(sizeof(float)*N,16);
 	assert(FVec!=NULL);
+	
 
 
-	////////////////////////////////////////////////////////////
 	//Threads
-	int threads = THREADS;	//We pass the number of threads 
+	////////////////////////////////////////////////////////////
 
 	//We are going to use Pthread-Barrier as our choise of synchronization
 	int s = pthread_barrier_init(&barrier,NULL,(unsigned int)threads);	//We initialize the barrier
@@ -296,8 +333,8 @@ int main(int argc, char ** argv)
 	}
 	////////////////////////////////////////////////////////////
 
-
-
+	//Initialize data
+	////////////////////////////////////////////////////////////
 	for(unsigned int i=0;i<N;i++)
 	{
 		mVec[i] = (float)(MINSNPS_B+rand()%MAXSNPS_E);
@@ -313,35 +350,53 @@ int main(int argc, char ** argv)
 		assert(RVec[i]>=0.0f && RVec[i]<=1.0f*nVec[i]);
 		assert(CVec[i]>=0.0f && CVec[i]<=1.0f*mVec[i]*nVec[i]);
 	}
+	////////////////////////////////////////////////////////////
+
 
 	double timeOmegaTotalStart = gettime();
 
-	updateThreadMMA(threadData);
-	startThreadOperations(threadData, LOOP);		
+
+	//for(unsigned int j=0;j<iters;j++)
+	//{
+		updateThreadMMA(threadData);
+		startThreadOperations(threadData, LOOP);
+	//}
 
 
-	float maxl[4];
-	float minl[4];
-	float suml[4];
-
-	
 
 	for (unsigned int k=0;k<threads;k++)
 	{
-		_mm_store_ps(maxl, (&threadData[k])->maxF);
-		_mm_store_ps(minl, (&threadData[k])->minF);
-		_mm_store_ps(suml, (&threadData[k])->avgF);
-		maxF = max(max(max(max(maxl[0], maxl[1]), maxl[2]), maxl[3]),maxF);
-		minF = min(min(min(min(minl[0], minl[1]), minl[2]), minl[3]),minF);
-		avgF = sum(sum(sum(sum(suml[0], suml[1]), suml[2]), suml[3]),avgF);
-		
+		maxF =  (&threadData[k])->thread_max>maxF?(&threadData[k])->thread_max:maxF;
+		minF =  (&threadData[k])->thread_min<minF?(&threadData[k])->thread_min:minF;
+		avgF += (&threadData[k])->thread_sum;	
 	}
 
+	unsigned int leftover= (((&threadData[threads-1])->end) /4) *4;
+	//We fix the left overs
+   	for(unsigned int i=leftover;i<N;i++)
+	{
+		float num_0 = LVec[i]+RVec[i];
+		float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
+		float num_2 = nVec[i]*(nVec[i]-1.0f)/2.0f;
+		float num = num_0/(num_1+num_2);
+
+		float den_0 = CVec[i]-LVec[i]-RVec[i];
+		float den_1 = mVec[i]*nVec[i];
+		float den = den_0/den_1;
+
+		FVec[i] = num/(den+0.01f);
+			
+		maxF = FVec[i]>maxF?FVec[i]:maxF;
+		minF = FVec[i]<minF?FVec[i]:minF;
+		avgF += FVec[i];
+	}	 
+
+	
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
-	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
+	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF);
 
 	terminateWorkerThreads(workerThread,threadData);
 	pthread_barrier_destroy(&barrier);
