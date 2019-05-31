@@ -161,7 +161,7 @@ void paralsin(threadData_t * threadData)
 	__m128 * maxg=threadData->maxF;
 	__m128 * ming=threadData->minF;
 
-	for(;i<end/4;i+=1)
+	for(i=i/4;i<end/4;i+=1)
 	{
 		variable= _mm_add_ps(LVec[i], RVec[i]);
 
@@ -372,9 +372,8 @@ int main(int argc, char ** argv)
 	}
 
 	unsigned int leftover= (((&threadData[threads-1])->end) /4) *4;
-
 	//We fix the left overs
-   	for(unsigned int i=N-leftover;i<N;i++)
+   	for(unsigned int i=leftover;i<N;i++)
 	{
 		float num_0 = LVec[i]+RVec[i];
 		float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
@@ -397,7 +396,7 @@ int main(int argc, char ** argv)
 	double timeTotalMainStop = gettime();
 
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
-	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF/N);
+	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,(double)avgF);
 
 	terminateWorkerThreads(workerThread,threadData);
 	pthread_barrier_destroy(&barrier);

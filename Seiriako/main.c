@@ -99,7 +99,7 @@ int main(int argc, char ** argv){
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 	printf("Omega time %fs - Total time %fs - Min %e - Max %e - Avg %e\n",
-	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,	(double)avgF/N);
+	timeOmegaTotal/iters, timeTotalMainStop-timeTotalMainStart, (double)minF, (double)maxF,	(double)avgF);
 	
 	free(mVec);
 	free(nVec);
