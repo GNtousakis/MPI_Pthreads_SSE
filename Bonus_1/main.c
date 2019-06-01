@@ -32,7 +32,9 @@ int main(int argc, char ** argv)
 {
 
 	assert(argc==2);
+
 	double timeTotalMainStart = gettime();
+	
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;
@@ -47,21 +49,6 @@ int main(int argc, char ** argv)
 	// mVec nVec LVec RVec CVec FVec
 	float * alldata = (float*)_mm_malloc(sizeof(float)*N*6,16);
 	assert(alldata!=NULL);
-
-/*
-	float * mVec = (float*)_mm_malloc(sizeof(float)*N,16);
-	assert(mVec!=NULL);
-	float * nVec = (float*)_mm_malloc(sizeof(float)*N,16);
-	assert(nVec!=NULL);
-	float * LVec = (float*)_mm_malloc(sizeof(float)*N,16);
-	assert(LVec!=NULL);
-	float * RVec = (float*)_mm_malloc(sizeof(float)*N,16);
-	assert(RVec!=NULL);
-	float * CVec = (float*)_mm_malloc(sizeof(float)*N,16);
-	assert(CVec!=NULL);
-	float * FVec = (float*)_mm_malloc(sizeof(float)*N,16);
-	assert(FVec!=NULL);
-*/
 
 	float * maxg = (float*)_mm_malloc(sizeof(float),16);
 	assert(maxg!=NULL);

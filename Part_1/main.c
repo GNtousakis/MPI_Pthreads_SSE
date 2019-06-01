@@ -33,6 +33,7 @@ int main(int argc, char ** argv)
 
 	assert(argc==2);
 	double timeTotalMainStart = gettime();
+	
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;

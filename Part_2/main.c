@@ -356,11 +356,11 @@ int main(int argc, char ** argv)
 	double timeOmegaTotalStart = gettime();
 
 
-	//for(unsigned int j=0;j<iters;j++)
-	//{
+	for(unsigned int j=0;j<iters;j++)
+	{
 		updateThreadMMA(threadData);
 		startThreadOperations(threadData, LOOP);
-	//}
+	}
 
 
 
