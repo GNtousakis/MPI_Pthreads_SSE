@@ -64,9 +64,9 @@ int main(int argc, char ** argv){
 		
 		assert(mVec[i]>=MINSNPS_B && mVec[i]<=(MINSNPS_B+MAXSNPS_E));
 		assert(nVec[i]>=MINSNPS_B && nVec[i]<=(MINSNPS_B+MAXSNPS_E));
-		assert(LVec[i]>0.0f && LVec[i]<=1.0f*mVec[i]);		
-		assert(RVec[i]>0.0f && RVec[i]<=1.0f*nVec[i]);
-		assert(CVec[i]>0.0f && CVec[i]<=1.0f*mVec[i]*nVec[i]);
+		assert(LVec[i]>=0.0f && LVec[i]<=1.0f*mVec[i]);		
+		assert(RVec[i]>=0.0f && RVec[i]<=1.0f*nVec[i]);
+		assert(CVec[i]>=0.0f && CVec[i]<=1.0f*mVec[i]*nVec[i]);
 	}
 
 	double timeOmegaTotalStart = gettime();
