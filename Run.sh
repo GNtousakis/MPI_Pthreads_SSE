@@ -1,9 +1,17 @@
+gcc ./Seiriako/main.c -o ./Seiriako/ektelesimo 
 gcc ./Part_1/main.c -o ./Part_1/ektelesimo -msse4.2 
 gcc ./Part_2/main.c -o ./Part_2/ektelesimo -msse4.2 -pthread
 mpicc ./Part_3/main.c -o ./Part_3/ektelesimo -msse4.2 -pthread
 
 sleep_time=3
 sleep_time_between_results=1
+
+echo -e "\n\n"
+echo -e "---------------------- We will Seiriako code --------------------------------------------------"
+echo -e "------------------------- to demonstrate that everything works ---------------------------"
+
+./Seiriako/ektelesimo 10000000
+sleep ${sleep_time}
 
 echo -e "\n\n"
 echo -e "---------------------- We will SEE code --------------------------------------------------"
