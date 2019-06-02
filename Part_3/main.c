@@ -6,6 +6,7 @@
 #include <float.h>
 #include <pthread.h>
 #include "xmmintrin.h"
+#include <mpi.h>
 
 #define MINSNPS_B 5
 #define MAXSNPS_E 20
@@ -78,17 +79,19 @@ typedef struct
 
 }threadData_t;
 
-void initializeThreadData(threadData_t * cur, int i, int threads,int n,float * mVec1,float * nVec1,float * LVec1,float * RVec1,float* CVec1,float* FVec1)
+void initializeThreadData(int world_rank,int start,int end,threadData_t * cur, int i, int threads,int n,float * mVec1,float * nVec1,float * LVec1,float * RVec1,float* CVec1,float* FVec1)
 {
+
+    int tasksperthread=n/threads;
 	cur->threadID=i;
 	cur->threadTOTAL=threads;
 	cur->threadBARRIER=0;
 	cur->threadOPERATION=BUSYWAIT;
 
 	///We find the limits of loop
-
-	cur->begin=(n/threads)*i; 	
-	cur->end  =(n/threads)*(i+1);
+    
+	cur->begin=tasksperthread*i; 	
+	cur->end  =tasksperthread*i+tasksperthread;
 
 	cur->mVec= (__m128 *) mVec1;
 	cur->nVec= (__m128 *) nVec1;
@@ -147,8 +150,8 @@ void paralsin(threadData_t * threadData)
 	__m128 	 scale2 = _mm_set_ps1(1.0f);
 	__m128   scale3 = _mm_set_ps1(2.0f);
 
-	int      i= threadData->begin ;
-	int      end= threadData->end ;	
+	  int    i= threadData->begin ;
+	  int    end= threadData->end ;	
 
 	__m128 * mVec=threadData->mVec;
 	__m128 * nVec=threadData->nVec;
@@ -160,6 +163,7 @@ void paralsin(threadData_t * threadData)
 	__m128 * sumg=threadData->avgF;
 	__m128 * maxg=threadData->maxF;
 	__m128 * ming=threadData->minF;
+
 
 	for(i=i/4;i<end/4;i+=1)
 	{
@@ -276,20 +280,35 @@ void * thread (void * x)
 	 
 int main(int argc, char ** argv)
 {	
-	assert(argc==2);
-
-	int threads = THREADS;	//We pass the number of threads 
-
+	assert(argc==3);
+	int threads = (int)atoi(argv[2]);
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;
 
+    // Initialize the MPI environment
+    MPI_Init(NULL, NULL);
+    // Get the number of processes
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
+    // Get the rank of the process
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+  	int name_len;
+  	MPI_Get_processor_name(processor_name,&name_len);
 	double timeTotalMainStart = gettime();
 	unsigned int N = (unsigned int)atoi(argv[1]);
-	unsigned int iters = 10;
 
-	
+	unsigned int iters = 10;
+	int k=N%4;
+
+
+	int processSize = (N/4) / world_size;
+    int start = processSize * world_rank;
+    int reamaining_calc=N%world_size;
+    int end = start + processSize;
 
 
 	srand(1);
@@ -324,7 +343,7 @@ int main(int argc, char ** argv)
 
 	for (int i = 0; i < threads; i++)
 	{
-		initializeThreadData(&threadData[i],i,threads,N,mVec,nVec,LVec,RVec,CVec,FVec);
+		initializeThreadData(world_rank,start,end,&threadData[i],i,threads,N,mVec,nVec,LVec,RVec,CVec,FVec);
 	}
 
 	for (int i = 1; i < threads; i++)
@@ -356,12 +375,11 @@ int main(int argc, char ** argv)
 	double timeOmegaTotalStart = gettime();
 
 
-	//for(unsigned int j=0;j<iters;j++)
-	//{
+	for(unsigned int j=0;j<iters;j++)
+	{
 		updateThreadMMA(threadData);
 		startThreadOperations(threadData, LOOP);
-	//}
-
+	}
 
 
 	for (unsigned int k=0;k<threads;k++)
@@ -371,11 +389,34 @@ int main(int argc, char ** argv)
 		avgF += (&threadData[k])->thread_sum;	
 	}
 
-	unsigned int leftover= (((&threadData[threads-1])->end) /4) *4;
-	//We fix the left overs
-   	for(unsigned int i=leftover;i<N;i++)
-	{
-		float num_0 = LVec[i]+RVec[i];
+	// unsigned int leftover= (((&threadData[threads-1])->end) /4) *4;
+	// //We fix the left overs
+ //   	for(unsigned int i=leftover;i<N;i++)
+	// {
+	// 	float num_0 = LVec[i]+RVec[i];
+	// 	float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
+	// 	float num_2 = nVec[i]*(nVec[i]-1.0f)/2.0f;
+	// 	float num = num_0/(num_1+num_2);
+
+	// 	float den_0 = CVec[i]-LVec[i]-RVec[i];
+	// 	float den_1 = mVec[i]*nVec[i];
+	// 	float den = den_0/den_1;
+
+	// 	FVec[i] = num/(den+0.01f);
+			
+	// 	maxF = FVec[i]>maxF?FVec[i]:maxF;
+	// 	minF = FVec[i]<minF?FVec[i]:minF;
+	// 	avgF += FVec[i];
+	// }	
+
+
+        if (!world_rank) {
+	
+        start = N-k;
+        end = N;
+        for (int i = start; i < end; i++) {
+        //use scalar (traditional) way to compute remaining of array ( N%4 iterations )
+        float num_0 = LVec[i]+RVec[i];
 		float num_1 = mVec[i]*(mVec[i]-1.0f)/2.0f;
 		float num_2 = nVec[i]*(nVec[i]-1.0f)/2.0f;
 		float num = num_0/(num_1+num_2);
@@ -389,9 +430,10 @@ int main(int argc, char ** argv)
 		maxF = FVec[i]>maxF?FVec[i]:maxF;
 		minF = FVec[i]<minF?FVec[i]:minF;
 		avgF += FVec[i];
-	}	 
 
-	
+          }
+	}
+
 	double timeOmegaTotal = gettime()-timeOmegaTotalStart;
 	double timeTotalMainStop = gettime();
 
@@ -401,6 +443,24 @@ int main(int argc, char ** argv)
 	terminateWorkerThreads(workerThread,threadData);
 	pthread_barrier_destroy(&barrier);
 
+    float *processMax = world_rank ? NULL : (float *) malloc(sizeof(float) * world_size);
+    MPI_Gather(&maxF, 1, MPI_FLOAT, processMax, 1, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+    // Finalize the MPI environment.
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Finalize();
+
+    if (!world_rank) {
+        float globalMax = 0;
+        for (int i = 0; i < world_size; i++) {
+            globalMax = globalMax < processMax[i] ? processMax[i] : globalMax;
+        }
+		//printf("Time: %f us, Max %f\n", (timeTotal / iters)*1000000, globalMax);
+        // printf("Time %f Max %f\n", timeTotal / iters, globalMax);
+    }
+
+
+    free(processMax);
 	_mm_free(mVec);
 	_mm_free(nVec);
 	_mm_free(LVec);

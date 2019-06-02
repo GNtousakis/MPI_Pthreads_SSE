@@ -19,7 +19,6 @@ double gettime(void);
 float randpval (void);    
 
 //Thead stuff
-#define THREADS 2
 static pthread_t * workerThread; 
 static pthread_barrier_t barrier;
 
@@ -276,9 +275,9 @@ void * thread (void * x)
 	 
 int main(int argc, char ** argv)
 {	
-	assert(argc==2);
+	assert(argc==3);
 
-	int threads = THREADS;	//We pass the number of threads 
+
 
 	float avgF = 0.0f;
 	float maxF = 0.0f;
@@ -287,6 +286,7 @@ int main(int argc, char ** argv)
 
 	double timeTotalMainStart = gettime();
 	unsigned int N = (unsigned int)atoi(argv[1]);
+	int threads = (int)atoi(argv[2]);
 	unsigned int iters = 10;
 
 	
