@@ -280,10 +280,8 @@ void * thread (void * x)
 	 
 int main(int argc, char ** argv)
 {	
-	assert(argc==2);
-
-	int threads = THREADS;	//We pass the number of threads 
-
+	assert(argc==3);
+	int threads = (int)atoi(argv[2]);
 	float avgF = 0.0f;
 	float maxF = 0.0f;
 	float minF = FLT_MAX;
@@ -302,6 +300,7 @@ int main(int argc, char ** argv)
   	MPI_Get_processor_name(processor_name,&name_len);
 	double timeTotalMainStart = gettime();
 	unsigned int N = (unsigned int)atoi(argv[1]);
+
 	unsigned int iters = 10;
 	int k=N%4;
 
